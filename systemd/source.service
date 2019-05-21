@@ -1,0 +1,11 @@
+[Unit]
+Description=ftunnel 
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /usr/bin/ftunnel.py --source=:1337 --destination=example.com:443 --http=destination
+User=root
+Group=root
+
+[Install]
+WantedBy=multi-user.target

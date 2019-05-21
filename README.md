@@ -34,3 +34,11 @@ This will create a transparent/passive tunnel, masking the traffic coming in on 
       Supply a custom key & cert pair (pem format for now)
       TODO: Just generate one in runtime if one ain't supplied.
 
+# TODO:
+
+ * Get it working with OpenSSH
+ * Get it working with webservers behind the destination
+
+There's something dodgy with session-based sockets.
+OpenVPN for instance works fine, just not if the sockets expects
+to be closed every now and then.
