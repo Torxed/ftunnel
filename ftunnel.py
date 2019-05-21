@@ -35,7 +35,7 @@ class http():
 
 	def parse(self):
 		headers, payload = self.data.split(b'\r\n\r\n', 1)
-		return payload
+		return base64.b64decode(payload)
 
 	def build(self):
 		headers = 'POST /{} HTTP/1.1\r\n'.format(time.time())
@@ -78,36 +78,42 @@ while 1:
 			## extract the payload.. and it will act as a webserver
 			## - which means we need to wrap the socket as if it's HTTPS traffic.
 			if args['http'] == 'destination':
+				print('  Wrapping DESTINATION socket')
 				destination = ssl.wrap_socket(destination, server_side=False)
 			## But if the source is HTTP, we need to act as a web server for the source instead.
 			else:
+				print('  Wrapping INPUT socket')
 				ns = context.wrap_socket(ns, server_side=True)
-			print(f'relay to {target} has been established.')
-			
+			print(f'  Relay to {target} has been established.')
+
 			## Create the mapping table for source <--> destination
 			sockets[ns.fileno()] = {'sock' : ns, 'addr' : na, 'endpoint' : destination.fileno(), 'type' : 'source'}
-			sockets[destination.fileno()] = {'sock' : ns, 'addr' : na, 'endpoint' : ns.fileno(), 'type' : 'destination'}
+			sockets[destination.fileno()] = {'sock' : destination, 'addr' : (target, int(port)), 'endpoint' : ns.fileno(), 'type' : 'destination'}
 
 			poller.register(ns.fileno(), EPOLLIN|EPOLLHUP)
 			poller.register(destination.fileno(), EPOLLIN|EPOLLHUP)
 
 		elif fileno in sockets:
-			print(f'{sockets[fileno]["addr"][0]} sent data')
+			print(f'Recieved data from {sockets[fileno]["addr"][0]} [{sockets[fileno]["type"]}]')
 			data = sockets[fileno]['sock'].recv(8192)
 			if len(data) <= 0:
-				sockets[fileno]['sock'].close()
-				sockets[sockets[fileno]['endpoint']]['sock'].close()
-				poller.unregister(fileno)
-				poller.unregister(sockets[fileno]['endpoint'])
-				del(sockets[sockets[fileno]['endpoint']])
-				del(sockets[fileno])
+				print(f'{sockets[fileno]["addr"][0]} closed the socket. Closing the endpoint {sockets[sockets[fileno]["endpoint"]]["addr"][0]}')
+				try:
+					sockets[fileno]['sock'].send(b'')
+				except:
+					sockets[fileno]['sock'].close()
+					sockets[sockets[fileno]['endpoint']]['sock'].close()
+					poller.unregister(fileno)
+					poller.unregister(sockets[fileno]['endpoint'])
+					del(sockets[sockets[fileno]['endpoint']])
+					del(sockets[fileno])
+					continue
 
 			if sockets[fileno]['type'] == args['http']:
-				print(f'Extracting payload before sending to endpoint')
+				print(f'  Unpacking payload before sending to endpoint')
 				data = http(data).parse()
 				sockets[sockets[fileno]['endpoint']]['sock'].send(data)
 			else:
-				print(f'Building payload to endpoint')
+				print(f'  Encapsulating payload and sending to endpoint')
 				data = http(data).build()
-				print(data)
-				sockets[sockets[fileno]['endpoint']]['sock'].send(data)
+				sockets[sockets[fileno]['endpoint']]['sock'].send(data
