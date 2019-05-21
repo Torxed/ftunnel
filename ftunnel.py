@@ -116,4 +116,4 @@ while 1:
 			else:
 				print(f'  Encapsulating payload and sending to endpoint')
 				data = http(data).build()
-				sockets[sockets[fileno]['endpoint']]['sock'].send(data
+				sockets[sockets[fileno]['endpoint']]['sock'].send(data)
