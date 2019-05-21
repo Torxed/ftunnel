@@ -1,5 +1,5 @@
 # ftunnel
-stunnel but written in Python.. and more flexability to wrap data in other ways.
+stunnel but written in Python..
 
 # HOWTO
 
