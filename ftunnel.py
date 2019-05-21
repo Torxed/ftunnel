@@ -1,4 +1,4 @@
-import sys, ssl, signal, time
+import sys, ssl, signal, time, base64
 from socket import *
 from select import epoll, EPOLLIN, EPOLLHUP
 
@@ -14,6 +14,16 @@ for arg in sys.argv[1:]:
 	else:
 		positionals.append(arg)
 
+if not 'pem' in args:
+	import glob
+	try:
+		args['pem'] = glob.glob('*.pem')[0]
+	except:
+		raise KeyError('Need to supply or create a .pem (cert+key) in this catalogue:  {}'.format(
+			'openssl req -new -x509 -days 365 -nodes -out ftunnel.pem -keyout ftunnel.pem'
+		))
+
+
 def sig_handler(signal, frame):
 	s.close()
 	exit(0)
@@ -28,12 +38,12 @@ class http():
 		return payload
 
 	def build(self):
-		headers = b'POST /{} HTTP/1.1\r\n'.format(time.time())
-		headers += b'Host: hvornum.se\r\n'
-		headers += b'Content-Length: {}\r\n'.format(len(self.data))
-		headers += b'\r\n'
+		headers = 'POST /{} HTTP/1.1\r\n'.format(time.time())
+		headers += 'Host: hvornum.se\r\n'
+		headers += 'Content-Length: {}\r\n'.format(len(self.data))
+		headers += '\r\n'
 
-		return headers + self.data
+		return bytes(headers, 'UTF-8') + base64.b64encode(self.data)
 
 poller = epoll()
 sockets = {}
@@ -43,6 +53,9 @@ local, port = args['source'].split(':')
 s = socket()
 s.setsockopt(SOL_SOCKET, SO_REUSEADDR, 1)
 s.bind((local, int(port)))
+s.listen(4)
+poller.register(s.fileno(), EPOLLIN|EPOLLHUP)
+print(f'Bound INPUT to {local}:{port}')
 
 context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
 context.load_cert_chain(args['pem'], args['pem'])
@@ -53,7 +66,7 @@ while 1:
 		if fileno == s.fileno():
 			## Accept the client
 			ns, na = s.accept()
-			print(f'{na} has connected.')
+			print(f'{na[0]} has connected.')
 			
 			## Redirect to destination
 			destination = socket()
@@ -65,7 +78,7 @@ while 1:
 			## extract the payload.. and it will act as a webserver
 			## - which means we need to wrap the socket as if it's HTTPS traffic.
 			if args['http'] == 'destination':
-				destination = ssl.wrap_socket(destination, server_side=False, cert_reqs=None)
+				destination = ssl.wrap_socket(destination, server_side=False)
 			## But if the source is HTTP, we need to act as a web server for the source instead.
 			else:
 				ns = context.wrap_socket(ns, server_side=True)
@@ -79,7 +92,7 @@ while 1:
 			poller.register(destination.fileno(), EPOLLIN|EPOLLHUP)
 
 		elif fileno in sockets:
-			print(f'{sockets[fileno]["addr"]} sent data')
+			print(f'{sockets[fileno]["addr"][0]} sent data')
 			data = sockets[fileno]['sock'].recv(8192)
 			if len(data) <= 0:
 				sockets[fileno]['sock'].close()
@@ -96,4 +109,5 @@ while 1:
 			else:
 				print(f'Building payload to endpoint')
 				data = http(data).build()
+				print(data)
 				sockets[sockets[fileno]['endpoint']]['sock'].send(data)
