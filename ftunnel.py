@@ -1,6 +1,14 @@
-import sys, ssl, signal, time, base64
+import sys, ssl, signal, time, base64, logging
 from socket import *
 from select import epoll, EPOLLIN, EPOLLHUP
+
+logger = logging.getLogger('ftunnel')
+try:
+	from systemd.journal import JournalHandler
+	logger.addHandler(JournalHandler())
+except:
+	JournalHandler = None
+logger.setLevel(logging.INFO)
 
 args = {}
 positionals = []
@@ -26,11 +34,16 @@ if not 'pem' in args:
 				'openssl req -new -x509 -days 365 -nodes -out ftunnel.pem -keyout ftunnel.pem'
 			))
 
+def log(*msg, **kwargs):
+	logger.info(''.join(msg))
+	if 'verbose' in args and args['verbose']:
+		print(''.join(msg))
 
 def sig_handler(signal, frame):
 	s.close()
 	exit(0)
 signal.signal(signal.SIGINT, sig_handler)
+signal.signal(signal.SIGTERM, sig_handler)
 
 class http():
 	def __init__(self, data=b''):
@@ -58,7 +71,7 @@ s.setsockopt(SOL_SOCKET, SO_REUSEADDR, 1)
 s.bind((local, int(port)))
 s.listen(4)
 poller.register(s.fileno(), EPOLLIN|EPOLLHUP)
-print(f'Bound INPUT to {local}:{port}')
+log(f'Bound INPUT to {local}:{port}')
 
 context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
 context.load_cert_chain(args['pem'], args['pem'])
@@ -69,7 +82,7 @@ while 1:
 		if fileno == s.fileno():
 			## Accept the client
 			ns, na = s.accept()
-			print(f'{na[0]} has connected.')
+			log(f'{na[0]} has connected.')
 			
 			## Redirect to destination
 			destination = socket()
@@ -77,6 +90,7 @@ while 1:
 			try:
 				destination.connect((target, int(port)))
 			except ConnectionRefusedError:
+				log('  Destination (relay) isn\'t available. Dropping INPUT.')
 				ns.close()
 				continue
 
@@ -85,13 +99,13 @@ while 1:
 			## extract the payload.. and it will act as a webserver
 			## - which means we need to wrap the socket as if it's HTTPS traffic.
 			if args['http'] == 'destination':
-				print('  Wrapping DESTINATION socket')
+				log('  Wrapping DESTINATION socket')
 				destination = ssl.wrap_socket(destination, server_side=False)
 			## But if the source is HTTP, we need to act as a web server for the source instead.
 			else:
-				print('  Wrapping INPUT socket')
+				log('  Wrapping INPUT socket')
 				ns = context.wrap_socket(ns, server_side=True)
-			print(f'  Relay to {target} has been established.')
+			log(f'  Relay to {target} has been established.')
 
 			## Create the mapping table for source <--> destination
 			sockets[ns.fileno()] = {'sock' : ns, 'addr' : na, 'endpoint' : destination.fileno(), 'type' : 'source'}
@@ -101,10 +115,10 @@ while 1:
 			poller.register(destination.fileno(), EPOLLIN|EPOLLHUP)
 
 		elif fileno in sockets:
-			print(f'Recieved data from {sockets[fileno]["addr"][0]} [{sockets[fileno]["type"]}]')
+			log(f'Recieved data from {sockets[fileno]["addr"][0]} [{sockets[fileno]["type"]}]')
 			data = sockets[fileno]['sock'].recv(8192)
 			if len(data) <= 0:
-				print(f'{sockets[fileno]["addr"][0]} closed the socket. Closing the endpoint {sockets[sockets[fileno]["endpoint"]]["addr"][0]}')
+				log(f'{sockets[fileno]["addr"][0]} closed the socket. Closing the endpoint {sockets[sockets[fileno]["endpoint"]]["addr"][0]}')
 				try:
 					sockets[fileno]['sock'].send(b'')
 				except:
@@ -117,10 +131,10 @@ while 1:
 					continue
 
 			if sockets[fileno]['type'] == args['http']:
-				print(f'  Unpacking payload before sending to endpoint')
+				log(f'  Unpacking payload before sending to endpoint')
 				data = http(data).parse()
 				sockets[sockets[fileno]['endpoint']]['sock'].send(data)
 			else:
-				print(f'  Encapsulating payload and sending to endpoint')
+				log(f'  Encapsulating payload and sending to endpoint')
 				data = http(data).build()
 				sockets[sockets[fileno]['endpoint']]['sock'].send(data)
