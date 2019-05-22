@@ -93,6 +93,7 @@ while 1:
 				log('  Destination (relay) isn\'t available. Dropping INPUT.')
 				ns.close()
 				continue
+			log(f'  Relay to destination {target}:{port} created.')
 
 			## If HTTP is pointed towards destination,
 			## it means we're sending to another stunnel who can
