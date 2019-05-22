@@ -101,7 +101,13 @@ while 1:
 			## - which means we need to wrap the socket as if it's HTTPS traffic.
 			if args['http'] == 'destination':
 				log('  Wrapping DESTINATION socket')
-				destination = ssl.wrap_socket(destination, server_side=False)
+				try:
+					destination = ssl.wrap_socket(destination, server_side=False)
+				except:
+					log('  Unable to handshake with DESTINATION.')
+					ns.close()
+					destination.close()
+					continue
 			## But if the source is HTTP, we need to act as a web server for the source instead.
 			else:
 				log('  Wrapping INPUT socket')
