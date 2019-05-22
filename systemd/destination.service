@@ -2,7 +2,7 @@
 Description=ftunnel 
 
 [Service]
-Type=oneshot
+Type=simple
 ExecStart=/usr/bin/python3 /usr/bin/ftunnel.py --source=:443 --destination=127.0.0.1:22 --http=source
 User=root
 Group=root

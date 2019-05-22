@@ -19,9 +19,12 @@ if not 'pem' in args:
 	try:
 		args['pem'] = glob.glob('*.pem')[0]
 	except:
-		raise KeyError('Need to supply or create a .pem (cert+key) in this catalogue:  {}'.format(
-			'openssl req -new -x509 -days 365 -nodes -out ftunnel.pem -keyout ftunnel.pem'
-		))
+		try:
+			args['pem'] = glob.glob('/etc/ftunnel/*.pem')[0]
+		except:
+			raise KeyError('Need to supply or create a .pem (cert+key) in this catalogue:  {}'.format(
+				'openssl req -new -x509 -days 365 -nodes -out ftunnel.pem -keyout ftunnel.pem'
+			))
 
 
 def sig_handler(signal, frame):
@@ -71,7 +74,11 @@ while 1:
 			## Redirect to destination
 			destination = socket()
 			target, port = args['destination'].split(':')
-			destination.connect((target, int(port)))
+			try:
+				destination.connect((target, int(port)))
+			except ConnectionRefusedError:
+				ns.close()
+				continue
 
 			## If HTTP is pointed towards destination,
 			## it means we're sending to another stunnel who can
