@@ -90,7 +90,7 @@ while 1:
 			try:
 				destination.connect((target, int(port)))
 			except ConnectionRefusedError:
-				log('  Destination (relay) isn\'t available. Dropping INPUT.')
+				log(f'  Destination {target}:{port} (relay) isn\'t available. Dropping INPUT.')
 				ns.close()
 				continue
 			log(f'  Relay to destination {target}:{port} created.')
