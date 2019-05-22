@@ -22,6 +22,7 @@ for arg in sys.argv[1:]:
 	else:
 		positionals.append(arg)
 
+if not 'verbosity' in args: args['verbosity'] = 3
 if not 'pem' in args:
 	import glob
 	try:
@@ -35,9 +36,10 @@ if not 'pem' in args:
 			))
 
 def log(*msg, **kwargs):
-	logger.info(''.join(msg))
-	if 'verbose' in args and args['verbose']:
-		print(''.join(msg))
+	if not 'level' in kwargs or kwargs['level'] >= args['verbosity']:
+		logger.info(''.join(msg))
+		if 'verbose' in args and args['verbose']:
+			print(''.join(msg))
 
 def sig_handler(signal, frame):
 	s.close()
@@ -71,7 +73,7 @@ s.setsockopt(SOL_SOCKET, SO_REUSEADDR, 1)
 s.bind((local, int(port)))
 s.listen(4)
 poller.register(s.fileno(), EPOLLIN|EPOLLHUP)
-log(f'Bound INPUT to {local}:{port}')
+log(f'Bound INPUT to {local}:{port}', level=5)
 
 context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
 context.load_cert_chain(args['pem'], args['pem'])
@@ -82,7 +84,7 @@ while 1:
 		if fileno == s.fileno():
 			## Accept the client
 			ns, na = s.accept()
-			log(f'{na[0]} has connected.')
+			log(f'{na[0]} has connected (to input).', level=5)
 			
 			## Redirect to destination
 			destination = socket()
@@ -90,29 +92,29 @@ while 1:
 			try:
 				destination.connect((target, int(port)))
 			except ConnectionRefusedError:
-				log(f'  Destination {target}:{port} (relay) isn\'t available. Dropping INPUT.')
+				log(f'  Destination {target}:{port} (relay) isn\'t available. Dropping INPUT.', level=2)
 				ns.close()
 				continue
-			log(f'  Relay to destination {target}:{port} created.')
+			log(f'  Relay to destination {target}:{port} created.', level=1)
 
 			## If HTTP is pointed towards destination,
 			## it means we're sending to another stunnel who can
 			## extract the payload.. and it will act as a webserver
 			## - which means we need to wrap the socket as if it's HTTPS traffic.
 			if args['http'] == 'destination':
-				log('  Wrapping DESTINATION socket')
+				log('  Wrapping DESTINATION socket', level=1)
 				try:
 					destination = ssl.wrap_socket(destination, server_side=False)
 				except:
-					log('  Unable to handshake with DESTINATION.')
+					log('  Unable to handshake with DESTINATION.', level=2)
 					ns.close()
 					destination.close()
 					continue
 			## But if the source is HTTP, we need to act as a web server for the source instead.
 			else:
-				log('  Wrapping INPUT socket')
+				log('  Wrapping INPUT socket', level=1)
 				ns = context.wrap_socket(ns, server_side=True)
-			log(f'  Relay to {target} has been established.')
+			log(f'  Relay to {target} has been established.', level=2)
 
 			## Create the mapping table for source <--> destination
 			sockets[ns.fileno()] = {'sock' : ns, 'addr' : na, 'endpoint' : destination.fileno(), 'type' : 'source'}
@@ -122,10 +124,10 @@ while 1:
 			poller.register(destination.fileno(), EPOLLIN|EPOLLHUP)
 
 		elif fileno in sockets:
-			log(f'Recieved data from {sockets[fileno]["addr"][0]} [{sockets[fileno]["type"]}]')
+			log(f'Recieved data from {sockets[fileno]["addr"][0]} [{sockets[fileno]["type"]}]', level=1)
 			data = sockets[fileno]['sock'].recv(8192)
 			if len(data) <= 0:
-				log(f'{sockets[fileno]["addr"][0]} closed the socket. Closing the endpoint {sockets[sockets[fileno]["endpoint"]]["addr"][0]}')
+				log(f'{sockets[fileno]["addr"][0]} closed the socket. Closing the endpoint {sockets[sockets[fileno]["endpoint"]]["addr"][0]}', level=1)
 				try:
 					sockets[fileno]['sock'].send(b'')
 				except:
@@ -138,10 +140,10 @@ while 1:
 					continue
 
 			if sockets[fileno]['type'] == args['http']:
-				log(f'  Unpacking payload before sending to endpoint')
+				log(f'  Unpacking payload before sending to endpoint', level=1)
 				data = http(data).parse()
 				sockets[sockets[fileno]['endpoint']]['sock'].send(data)
 			else:
-				log(f'  Encapsulating payload and sending to endpoint')
+				log(f'  Encapsulating payload and sending to endpoint', level=1)
 				data = http(data).build()
 				sockets[sockets[fileno]['endpoint']]['sock'].send(data)
