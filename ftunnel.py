@@ -36,7 +36,7 @@ if not 'pem' in args:
 			))
 
 def log(*msg, **kwargs):
-	if not 'level' in kwargs or kwargs['level'] >= args['verbosity']:
+	if not 'level' in kwargs or kwargs['level'] >= int(args['verbosity']):
 		logger.info(''.join(msg))
 		if 'verbose' in args and args['verbose']:
 			print(''.join(msg))
