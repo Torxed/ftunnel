@@ -51,7 +51,7 @@ def sig_handler(signal, frame):
 	print('Done, buy buy')
 	exit(0)
 signal.signal(signal.SIGINT, sig_handler)
-signal.signal(signal.SIGTERM, sig_handler)
+#signal.signal(signal.SIGTERM, sig_handler)
 
 class http():
 	def __init__(self, data=b''):
@@ -149,8 +149,10 @@ while 1:
 			if sockets[fileno]['type'] == args['http']:
 				log(f'  Unpacking payload before sending to endpoint', level=1)
 				data = http(data).parse()
+				print(data)
 				sockets[sockets[fileno]['endpoint']]['sock'].send(data)
 			else:
 				log(f'  Encapsulating payload and sending to endpoint', level=1)
 				data = http(data).build()
+				print(data)
 				sockets[sockets[fileno]['endpoint']]['sock'].send(data)
