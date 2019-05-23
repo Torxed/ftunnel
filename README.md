@@ -30,9 +30,14 @@ This will create a transparent/passive tunnel, masking the traffic coming in on 
       Where to relay the data passively. I say passively because the original
       data is never touched.
       
-    --pem=[./path/to/key+cert.pem]
+    --pem=[./*.pem|/etc/ftunnel/*.pem]
       Supply a custom key & cert pair (pem format for now)
       TODO: Just generate one in runtime if one ain't supplied.
+    
+    --verbose
+    --verbosity=3
+      Manages the level of logging and if printing output to terminal
+      should be enabled or not (default off).
 
 # TODO:
 
