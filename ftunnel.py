@@ -42,7 +42,13 @@ def log(*msg, **kwargs):
 			print(''.join(msg))
 
 def sig_handler(signal, frame):
+	print('Exiting, closing sockets..')
+	for fileno in list(sockets.keys()):
+		poller.unregister(fileno)
+		sockets[fileno]['sock'].close()
+		del(sockets[fileno])
 	s.close()
+	print('Done, buy buy')
 	exit(0)
 signal.signal(signal.SIGINT, sig_handler)
 signal.signal(signal.SIGTERM, sig_handler)
@@ -126,6 +132,7 @@ while 1:
 		elif fileno in sockets:
 			log(f'Recieved data from {sockets[fileno]["addr"][0]} [{sockets[fileno]["type"]}]', level=1)
 			data = sockets[fileno]['sock'].recv(8192)
+			log(f'  Length of data: {len(data)}', level=1)
 			if len(data) <= 0:
 				log(f'{sockets[fileno]["addr"][0]} closed the socket. Closing the endpoint {sockets[sockets[fileno]["endpoint"]]["addr"][0]}', level=1)
 				try:
