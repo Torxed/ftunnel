@@ -62,12 +62,14 @@ class http():
 		return base64.b64decode(payload)
 
 	def build(self):
+		payload = base64.b64encode(self.data)
+
 		headers = 'POST /{} HTTP/1.1\r\n'.format(time.time())
 		headers += 'Host: hvornum.se\r\n'
-		headers += 'Content-Length: {}\r\n'.format(len(self.data))
+		headers += 'Content-Length: {}\r\n'.format(len(payload))
 		headers += '\r\n'
 
-		return bytes(headers, 'UTF-8') + base64.b64encode(self.data)
+		return bytes(headers, 'UTF-8') + payload
 
 poller = epoll()
 sockets = {}
